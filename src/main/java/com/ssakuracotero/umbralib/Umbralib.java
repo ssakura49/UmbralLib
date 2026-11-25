@@ -18,6 +18,8 @@ public class Umbralib {
     public Umbralib() {
         IEventBus modEventBus = getEventBus();
         modEventBus.addListener(this::commonSetup);
+        net.minecraftforge.fml.ModLoadingContext.get().registerConfig(net.minecraftforge.fml.config.ModConfig.Type.CLIENT,
+                com.ssakuracotero.umbralib.api.client.VisualConfig.SPEC, "umbralib-client.toml");
         MinecraftForge.EVENT_BUS.register(this);
     }
 

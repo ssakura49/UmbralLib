@@ -29,13 +29,22 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BooleanSupplier;
 
-/** Registry and stage dispatch behind {@code WeaponSwingRenderer}. Internal: not API, may change in any release. */
+/**
+ * Registry and stage dispatch behind {@code WeaponSwingRenderer}. Internal: not API, may change in any release.
+ *
+ * <p>An implementation is consulted for an entity while either hand holds an item bound to it, and at most once per
+ * event, so it can also control the other hand (hide its item, keep it out of the swing) and is never run twice when
+ * both hands hold its items.
+ */
 public final class WeaponSwingDispatcher {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final Map<Item, WeaponSwingAnimation> BY_ITEM = new ConcurrentHashMap<>();
     private static final Set<String> REPORTED = ConcurrentHashMap.newKeySet();
     /** Distinct implementations, for once-per-frame and reset stages. Replaced on every registration. */
     private static volatile List<WeaponSwingAnimation> distinct = List.of();
+
+    /** An implementation found on an entity and the hand holding its item (main hand first). */
+    private record Bound(WeaponSwingAnimation animation, InteractionHand hand) { }
 
     private WeaponSwingDispatcher() { }
 
@@ -57,34 +66,48 @@ public final class WeaponSwingDispatcher {
         return stack == null || stack.isEmpty() ? null : BY_ITEM.get(stack.getItem());
     }
 
+    /** Implementations bound to the items in either hand, each once, main hand first. */
+    private static List<Bound> bound(@Nullable LivingEntity entity) {
+        if (entity == null || BY_ITEM.isEmpty()) return List.of();
+        WeaponSwingAnimation main = find(entity.getMainHandItem());
+        WeaponSwingAnimation off = find(entity.getOffhandItem());
+        if (main == null && off == null) return List.of();
+        if (main == null) return List.of(new Bound(off, InteractionHand.OFF_HAND));
+        if (off == null || off == main) return List.of(new Bound(main, InteractionHand.MAIN_HAND));
+        return List.of(new Bound(main, InteractionHand.MAIN_HAND), new Bound(off, InteractionHand.OFF_HAND));
+    }
+
     public static void swingStarted(LivingEntity entity, InteractionHand hand, int durationTicks) {
-        if (entity == null || hand == null) return;
+        if (hand == null) return;
+        List<Bound> found = bound(entity);
+        if (found.isEmpty()) return;
         ItemStack stack = entity.getItemInHand(hand);
-        WeaponSwingAnimation animation = find(stack);
-        if (animation == null) return;
-        run(animation, "onSwingStart", () -> animation.onSwingStart(
-                new WeaponSwingAnimation.SwingStart(entity, hand, stack, durationTicks)));
+        WeaponSwingAnimation.SwingStart swing = new WeaponSwingAnimation.SwingStart(entity, hand, stack, durationTicks);
+        for (Bound b : found) run(b.animation(), "onSwingStart", () -> b.animation().onSwingStart(swing));
     }
 
     public static boolean suppressesVanillaSwing(LivingEntity entity) {
-        if (entity == null) return false;
+        List<Bound> found = bound(entity);
+        if (found.isEmpty()) return false;
         InteractionHand hand = swingingHand(entity);
         ItemStack stack = entity.getItemInHand(hand);
-        WeaponSwingAnimation animation = find(stack);
-        return animation != null
-                && test(animation, "replacesVanillaSwing", () -> animation.replacesVanillaSwing(entity, hand, stack));
+        for (Bound b : found) {
+            if (test(b.animation(), "replacesVanillaSwing", () -> b.animation().replacesVanillaSwing(entity, hand, stack)))
+                return true;
+        }
+        return false;
     }
 
     public static boolean poseModel(LivingEntity entity, HumanoidModel<?> model, float attackProgress) {
-        if (entity == null || model == null || BY_ITEM.isEmpty()) return false;
+        if (model == null) return false;
+        List<Bound> found = bound(entity);
+        if (found.isEmpty()) return false;
         float partial = Minecraft.getInstance().getFrameTime();
         boolean posed = false;
-        for (InteractionHand hand : InteractionHand.values()) {
-            ItemStack stack = entity.getItemInHand(hand);
-            WeaponSwingAnimation animation = find(stack);
-            if (animation == null) continue;
-            posed |= run(animation, "poseModel", () -> animation.poseModel(
-                    new WeaponSwingAnimation.ModelPose(entity, model, hand, stack, attackProgress, partial)));
+        for (Bound b : found) {
+            WeaponSwingAnimation.ModelPose pose = new WeaponSwingAnimation.ModelPose(entity, model, b.hand(),
+                    entity.getItemInHand(b.hand()), attackProgress, partial);
+            posed |= run(b.animation(), "poseModel", () -> b.animation().poseModel(pose));
         }
         return posed;
     }
@@ -92,23 +115,30 @@ public final class WeaponSwingDispatcher {
     public static boolean renderHeldItem(LivingEntity entity, ArmedModel model, ItemStack stack,
                                          ItemDisplayContext display, HumanoidArm arm, PoseStack pose,
                                          MultiBufferSource buffers, int packedLight) {
-        if (entity == null || arm == null || pose == null || buffers == null) return false;
-        WeaponSwingAnimation animation = find(stack);
-        if (animation == null) return false;
+        if (arm == null || pose == null || buffers == null) return false;
+        List<Bound> found = bound(entity);
+        if (found.isEmpty()) return false;
         InteractionHand hand = arm == entity.getMainArm() ? InteractionHand.MAIN_HAND : InteractionHand.OFF_HAND;
-        return test(animation, "renderHeldItem", () -> animation.renderHeldItem(new WeaponSwingAnimation.HeldItem(
-                entity, model, hand, arm, stack, display, pose, buffers, packedLight)));
+        WeaponSwingAnimation.HeldItem item = new WeaponSwingAnimation.HeldItem(entity, model, hand, arm, stack, display,
+                pose, buffers, packedLight);
+        for (Bound b : found) {
+            if (test(b.animation(), "renderHeldItem", () -> b.animation().renderHeldItem(item))) return true;
+        }
+        return false;
     }
 
     public static boolean firstPerson(AbstractClientPlayer player, InteractionHand hand, ItemStack stack,
                                       float swingProgress, float equipProgress, float partialTick, PoseStack pose,
                                       MultiBufferSource buffers, int packedLight) {
-        if (player == null || hand == null || pose == null || buffers == null) return false;
-        WeaponSwingAnimation animation = find(stack);
-        if (animation == null) return false;
-        return test(animation, "renderFirstPerson", () -> animation.renderFirstPerson(
-                new WeaponSwingAnimation.FirstPerson(player, hand, stack, swingProgress, equipProgress, partialTick,
-                        pose, buffers, packedLight)));
+        if (hand == null || pose == null || buffers == null) return false;
+        List<Bound> found = bound(player);
+        if (found.isEmpty()) return false;
+        WeaponSwingAnimation.FirstPerson view = new WeaponSwingAnimation.FirstPerson(player, hand, stack, swingProgress,
+                equipProgress, partialTick, pose, buffers, packedLight);
+        for (Bound b : found) {
+            if (test(b.animation(), "renderFirstPerson", () -> b.animation().renderFirstPerson(view))) return true;
+        }
+        return false;
     }
 
     public static void renderWorld(RenderLevelStageEvent event) {

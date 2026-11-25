@@ -4,12 +4,13 @@
   "package": "com.ssakuracotero.umbralib.mixin",
   "compatibilityLevel": "JAVA_17",
   "refmap": "umbralib.refmap.json",
-  "mixins": [
-  ],
+  "mixins": [],
   "client": [
     "client.LivingEntitySwingMixin",
     "client.HumanoidModelSwingMixin",
-    "client.ItemInHandLayerSwingMixin"
+    "client.ItemInHandLayerSwingMixin",
+    "client.PostChainAccess",
+    "client.PostPassMixin"
   ],
   "injectors": {
     "defaultRequire": 1

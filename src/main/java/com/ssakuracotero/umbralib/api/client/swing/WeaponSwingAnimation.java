@@ -22,6 +22,10 @@ import org.joml.Matrix4f;
  * item transforms, trail shape, colours and render types. Every method has a do-nothing default, so implement
  * only the stages you need. All calls happen on the client render thread.
  *
+ * <p>An implementation is consulted for an entity while <b>either</b> hand holds an item bound to it, and at most
+ * once per event even when both hands hold its items. Hand-specific stages pass the hand the event is about, whose
+ * stack may be empty or bound to nothing; this lets an implementation also hide or hold back the other hand.
+ *
  * <p>An exception thrown from a stage is caught and logged once per implementation and stage; that call then
  * falls back to vanilla. Implementations must still keep {@link PoseStack} pushes and pops balanced.
  *
@@ -29,11 +33,15 @@ import org.joml.Matrix4f;
  * construct them yourself.
  */
 public interface WeaponSwingAnimation {
-    /** A swing has just started for {@code hand}; {@code durationTicks} is the entity's current swing duration. */
+    /**
+     * A swing has just started for {@code hand}; {@code stack} is what that hand holds and need not be bound to this
+     * implementation. {@code durationTicks} is the entity's current swing duration.
+     */
     record SwingStart(LivingEntity entity, InteractionHand hand, ItemStack stack, int durationTicks) { }
 
     /**
      * End of {@code HumanoidModel#setupAnim}, after vanilla posing and before player sleeves copy the arms.
+     * {@code hand} and {@code stack} are the hand holding an item bound to this implementation (main hand first).
      *
      * @param attackProgress the vanilla attack progress 0..1 of {@code entity.swingingArm}, restored even when
      *                       {@link #replacesVanillaSwing} suppressed the vanilla arm motion
@@ -63,6 +71,9 @@ public interface WeaponSwingAnimation {
     default void onSwingStart(SwingStart swing) { }
 
     /**
+     * {@code hand} and {@code stack} are the swinging arm's hand and item, which need not be bound to this
+     * implementation.
+     *
      * @return {@code true} to zero the vanilla attack motion of the swinging arm for this model setup, so
      * {@link #poseModel} starts from an un-swung pose
      */
@@ -70,15 +81,25 @@ public interface WeaponSwingAnimation {
         return false;
     }
 
-    /** Called once for each hand whose held item is bound to this implementation. */
+    /** Called once per model setup while either hand holds an item bound to this implementation. */
     default void poseModel(ModelPose pose) { }
 
-    /** @return {@code true} if the item was rendered here and vanilla rendering for this arm must be skipped */
+    /**
+     * Called for each arm with a non-empty item while either hand holds an item bound to this implementation.
+     *
+     * @return {@code true} if the item was rendered here (or deliberately hidden) and vanilla rendering for this
+     * arm must be skipped
+     */
     default boolean renderHeldItem(HeldItem item) {
         return false;
     }
 
-    /** @return {@code true} if this hand was rendered here and vanilla hand rendering must be skipped */
+    /**
+     * Called for each hand, including an empty one, while either hand holds an item bound to this implementation.
+     *
+     * @return {@code true} if this hand was rendered here (or deliberately hidden) and vanilla hand rendering must
+     * be skipped
+     */
     default boolean renderFirstPerson(FirstPerson hand) {
         return false;
     }

@@ -1,0 +1,18 @@
+{
+  "vertex": "umbralib:gravity_lens",
+  "fragment": "umbralib:gravity_lens",
+  "attributes": ["Position", "UV0"],
+  "samplers": [
+    {"name": "Sampler0"},
+    {"name": "Sampler1"}
+  ],
+  "uniforms": [
+    {"name": "umbralib_LensCenter", "type": "float", "count": 2, "values": [0, 0]},
+    {"name": "umbralib_LensRadius", "type": "float", "count": 1, "values": [0]},
+    {"name": "umbralib_LensDepth", "type": "float", "count": 1, "values": [0]},
+    {"name": "umbralib_LensStrength", "type": "float", "count": 1, "values": [0]},
+    {"name": "umbralib_LensAge", "type": "float", "count": 1, "values": [0]},
+    {"name": "umbralib_Aspect", "type": "float", "count": 1, "values": [1]},
+    {"name": "umbralib_DepthBias", "type": "float", "count": 1, "values": [0.00035]}
+  ]
+}
