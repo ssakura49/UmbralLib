@@ -2,11 +2,14 @@
   "required": true,
   "minVersion": "0.8",
   "package": "com.ssakuracotero.umbralib.mixin",
-  "compatibilityLevel": "JAVA_8",
+  "compatibilityLevel": "JAVA_17",
   "refmap": "umbralib.refmap.json",
   "mixins": [
   ],
   "client": [
+    "client.LivingEntitySwingMixin",
+    "client.HumanoidModelSwingMixin",
+    "client.ItemInHandLayerSwingMixin"
   ],
   "injectors": {
     "defaultRequire": 1
