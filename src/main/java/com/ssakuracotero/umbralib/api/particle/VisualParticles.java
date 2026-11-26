@@ -23,6 +23,18 @@ public final class VisualParticles {
         level.addParticle(type.options(0, photonRgb(rgb), size, speed), x, y, z, vx, vy, vz);
     }
 
+    /**
+     * Client-side additive glow mote through its type's local gate; vanilla non-forced particle path.
+     *
+     * @return whether the gate admitted it (callers stop a batch on the first refusal)
+     */
+    public static boolean glow(Level level, GlowMoteOptions options, double x, double y, double z,
+                               double vx, double vy, double vz) {
+        if (!level.isClientSide || !options.type().allowLocal(level, x, y, z)) return false;
+        level.addParticle(options, x, y, z, vx, vy, vz);
+        return true;
+    }
+
     /** Mixes in some white so dark colours still read as highlights. */
     public static int photonRgb(int rgb) {
         int r = (rgb >> 16 & 255) * 3 / 5 + 102;
