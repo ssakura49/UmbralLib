@@ -17,7 +17,7 @@ public enum FxAnchor {
     OUTLET, EYE, SERVER_ORIGIN, HIT, CHEST, FEET, HEAD, FIELD;
 
     /**
-     * Host-supplied sample of a held item's actual emission point (e.g. a rendered wand tip) in world space.
+     * Host-supplied sample of a held item's actual emission point (e.g. the rendered tip of a held tool) in world space.
      * Returning {@code null} means no sample this frame; {@link #outlet} then uses the body-relative fallback.
      */
     @FunctionalInterface
